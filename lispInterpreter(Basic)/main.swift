@@ -9,15 +9,17 @@
 import Foundation
 
 var lispInput = ""
-/*
+
+
 while let line = readLine() {
     lispInput += line
     if line == "" {
         break
     }
 }
-*/
+
 var lispString = lispInput.replacingOccurrences(of: "(", with: " ( ").replacingOccurrences(of: ")", with: " ) ")
+
 
 indirect enum Exp {
     case Symbol(String)
@@ -111,20 +113,82 @@ func parse(_ input: String) -> (parsed: Exp, rest: String)? {
     return nil //also for ")" that wasn encountered w/o a preceding list
 }
 
-/*
+func eval(_ exp: Exp, env: inout [String: ValueType]) -> Exp? {
+    if let s = exp.getSymbolValue() {
+        return env[s]?.getConstantValue()
+    }
+    else if let _ = exp.getNumberValue() {
+        return exp
+    }
+    else if let l = exp.getListArray() {
+        guard let firstExp = l.first else { return nil } //assumes every list has atleast one element
+        guard let firstElement = firstExp.getSymbolValue() else { return nil } //assumes every list starts with a keyword or fn
+        switch firstElement {
+        case "if":
+            guard l.count == 4 else { return nil } //throw an error
+            guard let testExp = eval(l[1], env: &env) else { return nil } // throw error
+            guard let testVal = testExp.getBoolValue() else { return nil } //throw error
+            return (testVal ? eval(l[2], env: &env) : eval(l[3], env: &env))
+        case "define":
+            guard l.count == 3 else { return nil } //throw an error
+            guard let variable = l[1].getSymbolValue() else { return nil } //throw error
+            guard let value = eval(l[2], env: &env) else { return nil } //throw error
+            env[variable] = ValueType.constant(value)
+        default:
+            guard let proc = evalToProc(l[0], env: &env) else { return nil } //throw error
+            let args = l.compactMap{ eval($0, env: &env) }
+            return proc(args)
+        }
+    }
+    return nil
+}
+
+func evalToProc(_ exp: Exp, env: inout [String: ValueType]) -> (([Exp]) -> Exp?)? {
+    guard let procSymbol = exp.getSymbolValue() else { return nil }
+    return env[procSymbol]?.getOperation()
+}
+
+extension Exp: CustomStringConvertible {
+    var description: String {
+        if let num = self.getNumberValue() {
+            return String(num)
+        }
+        else if let sym = self.getSymbolValue() {
+            return sym
+        }
+        else if let list = self.getListArray() {
+            var result = "("
+            for exp in list {
+                result += "\(exp)"
+            }
+            result += ")"
+            return result
+        }
+        else if let bool = self.getBoolValue() {
+            return String(bool)
+        }
+        return "Invalid Exp"
+    }
+}
+
+
 if let lisp = parse(lispString), lisp.rest.isEmpty {
     print(lisp.parsed)
+    if let result = eval(lisp.parsed, env: &globalEnv) {
+        print(result)
+    }
 }
 else {
     print("Invalid LISP")
 }
-*/
 
+
+/*
 if let check = add([Exp.Number(-40), Exp.Number(41)]) {
     print(check)
 }
 else {
     print("Invalid")
 }
-
+*/
 

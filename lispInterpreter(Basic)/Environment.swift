@@ -8,10 +8,54 @@
 
 import Foundation
 
-enum SchemeProcedure {
-    case constant(Double)
+enum ValueType {
+    case constant(Exp)
     case operation(([Exp]) -> Exp?)
+    
+    func getConstantValue() -> Exp? {
+        switch self {
+        case .constant(let val):
+            return val
+        default:
+            return nil
+        }
+    }
+    func getOperation() -> (([Exp]) -> Exp?)? {
+        switch self {
+        case .operation(let op):
+            return op
+        default:
+            return nil
+        }
+    }
 }
+
+var globalEnv: [String: ValueType] = [
+    "π": ValueType.constant(.Number(Double.pi)),
+    "pi": ValueType.constant(.Number(Double.pi)),
+    "e": ValueType.constant(.Number(M_E)),
+    "𝑒": ValueType.constant(.Number(M_E)),
+    "sqrt": ValueType.operation(sqrt),
+    "sin": ValueType.operation(sin),
+    "cos": ValueType.operation(cos),
+    "tan": ValueType.operation(tan),
+    "abs": ValueType.operation(abs),
+    "+": ValueType.operation(plus),
+    "-": ValueType.operation(minus),
+    "*": ValueType.operation(mul),
+    "/": ValueType.operation(div),
+    "exp": ValueType.operation(exp),
+    "<":  ValueType.operation(lessThan),
+    ">":  ValueType.operation(greaterThan),
+    "<=":  ValueType.operation(lessThanEqual),
+    ">=":  ValueType.operation(greaterThanEqual),
+    "=": ValueType.operation(equal),
+    "equal?": ValueType.operation(equal),
+    "not": ValueType.operation(not),
+    "begin": ValueType.operation(begin),
+    "car": ValueType.operation(car),
+    "cdr": ValueType.operation(cdr)
+]
 
 func sqrt(_ input: [Exp]) -> Exp? {
     guard input.count == 1 else { return nil }
@@ -43,7 +87,7 @@ func abs(_ input: [Exp]) -> Exp? {
     return .Number(abs(value))
 }
 
-func add(_ input: [Exp]) -> Exp? {
+func plus(_ input: [Exp]) -> Exp? {
     guard input.count == 2 else { return nil }
     switch (input[0], input[1]) {
     case let (.Number(first), .Number(second)):
@@ -55,12 +99,20 @@ func add(_ input: [Exp]) -> Exp? {
     }
 }
 
-func sub(_ input: [Exp]) -> Exp? {
-    guard input.count == 2 else { return nil }
-    switch (input[0], input[1]) {
-    case let (.Number(first), .Number(second)):
-        return .Number(first - second)
-    default:
+func minus(_ input: [Exp]) -> Exp? { //for subtraction and negative
+    if input.count == 1 {
+        guard let value = input[0].getNumberValue() else { return nil }
+        return .Number(-value)
+    }
+    else if input.count == 2 {
+        switch (input[0], input[1]) {
+        case let (.Number(first), .Number(second)):
+            return .Number(first - second)
+        default:
+            return nil
+        }
+    }
+    else {
         return nil
     }
 }
@@ -79,7 +131,7 @@ func div(_ input: [Exp]) -> Exp? {
     guard input.count == 2 else { return nil }
     switch (input[0], input[1]) {
     case let (.Number(first), .Number(second)):
-        return .Number(first * second)
+        return .Number(first / second)
     default:
         return nil
     }
@@ -95,7 +147,7 @@ func exp(_ input: [Exp]) -> Exp? {
     }
 }
 
-func lessthan(_ input: [Exp]) -> Exp? {
+func lessThan(_ input: [Exp]) -> Exp? {
     guard input.count == 2 else { return nil }
     switch (input[0], input[1]) {
     case let (.Number(first), .Number(second)):
@@ -107,7 +159,7 @@ func lessthan(_ input: [Exp]) -> Exp? {
     }
 }
 
-func greaterthan(_ input: [Exp]) -> Exp? {
+func greaterThan(_ input: [Exp]) -> Exp? {
     guard input.count == 2 else { return nil }
     switch (input[0], input[1]) {
     case let (.Number(first), .Number(second)):
@@ -119,7 +171,7 @@ func greaterthan(_ input: [Exp]) -> Exp? {
     }
 }
 
-func lessthanequal(_ input: [Exp]) -> Exp? {
+func lessThanEqual(_ input: [Exp]) -> Exp? {
     guard input.count == 2 else { return nil }
     switch (input[0], input[1]) {
     case let (.Number(first), .Number(second)):
@@ -131,7 +183,7 @@ func lessthanequal(_ input: [Exp]) -> Exp? {
     }
 }
 
-func greaterthanequal(_ input: [Exp]) -> Exp? {
+func greaterThanEqual(_ input: [Exp]) -> Exp? {
     guard input.count == 2 else { return nil }
     switch (input[0], input[1]) {
     case let (.Number(first), .Number(second)):
@@ -167,13 +219,17 @@ func begin(_ input: [Exp]) -> Exp? {
     return input.last
 }
 
-func append(_ input: [Exp]) -> Exp? {
-    guard input.count == 2 else { return nil }
-    switch (input[0], input[1]) {
-    case let (.List(first), .List(second)):
-        return .List(first + second)
-    default:
-        return nil
-    }
+func car(_ input: [Exp]) -> Exp? {
+    return input.first
 }
+
+func cdr(_ input: [Exp]) -> Exp? {
+    var arr = input
+    arr.removeFirst()
+    return .List(arr)
+}
+
+
+
+
 
