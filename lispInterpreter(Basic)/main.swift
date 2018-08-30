@@ -8,19 +8,6 @@
 
 import Foundation
 
-var lispInput = ""
-
-
-while let line = readLine() {
-    lispInput += line
-    if line == "" {
-        break
-    }
-}
-
-var lispString = lispInput.replacingOccurrences(of: "(", with: " ( ").replacingOccurrences(of: ")", with: " ) ")
-
-
 indirect enum Exp {
     case Symbol(String)
     case Number(Double)
@@ -157,38 +144,35 @@ extension Exp: CustomStringConvertible {
             return sym
         }
         else if let list = self.getListArray() {
-            var result = "("
+            var result = "[ "
             for exp in list {
-                result += "\(exp)"
+                result += "\(exp) "
             }
-            result += ")"
+            result += "]"
             return result
-        }
-        else if let bool = self.getBoolValue() {
-            return String(bool)
         }
         return "Invalid Exp"
     }
 }
 
-
-if let lisp = parse(lispString), lisp.rest.isEmpty {
-    print(lisp.parsed)
-    if let result = eval(lisp.parsed, env: &globalEnv) {
-        print(result)
+func repl(_ prompt: String = "lispInterpreter>") {
+    while true {
+        print(prompt, separator: " ", terminator: "")
+        guard let input = readLine() else { break }
+        guard !input.isEmpty else { break }
+        let lispInput = input.replacingOccurrences(of: "(", with: " ( ").replacingOccurrences(of: ")", with: " ) ")
+        
+        if let parsedTuple = parse(lispInput), parsedTuple.rest.isEmpty {
+            if let result = eval(parsedTuple.parsed, env: &globalEnv) {
+                print(result)
+            }
+        }
+        else {
+            print("Invalid LISP expression")
+        }
     }
 }
-else {
-    print("Invalid LISP")
-}
 
+repl()
 
-/*
-if let check = add([Exp.Number(-40), Exp.Number(41)]) {
-    print(check)
-}
-else {
-    print("Invalid")
-}
-*/
 

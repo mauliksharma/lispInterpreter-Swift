@@ -11,6 +11,7 @@ import Foundation
 enum ValueType {
     case constant(Exp)
     case operation(([Exp]) -> Exp?)
+    case lambda([String], Exp)
     
     func getConstantValue() -> Exp? {
         switch self {
@@ -24,6 +25,14 @@ enum ValueType {
         switch self {
         case .operation(let op):
             return op
+        default:
+            return nil
+        }
+    }
+    func getLambdaInfo() -> (params: [String], body: Exp)? {
+        switch  self {
+        case let .lambda(par, bod):
+            return (par, bod)
         default:
             return nil
         }
@@ -228,8 +237,5 @@ func cdr(_ input: [Exp]) -> Exp? {
     arr.removeFirst()
     return .List(arr)
 }
-
-
-
 
 
