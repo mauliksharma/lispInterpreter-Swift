@@ -102,7 +102,9 @@ func parse(_ input: String) -> (parsed: Exp, rest: String)? {
 
 func eval(_ exp: Exp, env: inout [String: ValueType]) -> Exp? {
     if let s = exp.getSymbolValue() {
-        return env[s]?.getConstantValue()
+        if let value = findValueInEnv(key: s, env: env) {
+            return value.getConstantValue()
+        }
     }
     else if let _ = exp.getNumberValue() {
         return exp
@@ -112,28 +114,48 @@ func eval(_ exp: Exp, env: inout [String: ValueType]) -> Exp? {
         guard let firstElement = firstExp.getSymbolValue() else { return nil } //assumes every list starts with a keyword or fn
         switch firstElement {
         case "if":
-            guard l.count == 4 else { return nil } //throw an error
+            guard l.count == 4 else { return nil } //throw error
             guard let testExp = eval(l[1], env: &env) else { return nil } // throw error
             guard let testVal = testExp.getBoolValue() else { return nil } //throw error
             return (testVal ? eval(l[2], env: &env) : eval(l[3], env: &env))
         case "define":
             guard l.count == 3 else { return nil } //throw an error
             guard let variable = l[1].getSymbolValue() else { return nil } //throw error
-            guard let value = eval(l[2], env: &env) else { return nil } //throw error
-            env[variable] = ValueType.constant(value)
+            let valueExp = l[2]
+            if let list = valueExp.getListArray(), list[0].getSymbolValue() == "lambda" {
+                guard list.count == 3 else { return nil } //throw error
+                guard let  paramList = list[1].getListArray() else { return nil } //throw error
+                env[variable] = ValueType.lambda(paramList, list[2])
+            }
+            else {
+                guard let value = eval(l[2], env: &env) else { return nil } //throw error
+                if let _ = value.getNumberValue() {
+                    env[variable] = ValueType.constant(value)
+                }
+            }
+            
         default:
-            guard let proc = evalToProc(l[0], env: &env) else { return nil } //throw error
-            let args = l.compactMap{ eval($0, env: &env) }
-            return proc(args)
+            guard let callType = findValueInEnv(key: firstElement, env: env) else { return nil } //throw error
+            let args = l[1...].compactMap{ eval($0, env: &env) }
+            if let lambdaCall = callType.getLambda() {
+                var lambdaEnv = createNewEnv(paramExps: lambdaCall.params, argExps: args, outer: env)
+                //print(lambdaEnv)
+                return eval(lambdaCall.body, env: &lambdaEnv)
+            }
+            else if let procCall = callType.getOperation() {
+                return procCall(args)
+            }
         }
     }
     return nil
 }
 
+/*
 func evalToProc(_ exp: Exp, env: inout [String: ValueType]) -> (([Exp]) -> Exp?)? {
     guard let procSymbol = exp.getSymbolValue() else { return nil }
     return env[procSymbol]?.getOperation()
 }
+*/
 
 extension Exp: CustomStringConvertible {
     var description: String {
@@ -174,5 +196,3 @@ func repl(_ prompt: String = "lispInterpreter>") {
 }
 
 repl()
-
-

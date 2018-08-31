@@ -8,10 +8,13 @@
 
 import Foundation
 
-enum ValueType {
+typealias Env = [String: ValueType]
+
+indirect enum ValueType {
     case constant(Exp)
     case operation(([Exp]) -> Exp?)
-    case lambda([String], Exp)
+    case lambda([Exp], Exp)
+    case parent(Env)
     
     func getConstantValue() -> Exp? {
         switch self {
@@ -29,7 +32,7 @@ enum ValueType {
             return nil
         }
     }
-    func getLambdaInfo() -> (params: [String], body: Exp)? {
+    func getLambda() -> (params: [Exp], body: Exp)? {
         switch  self {
         case let .lambda(par, bod):
             return (par, bod)
@@ -37,9 +40,18 @@ enum ValueType {
             return nil
         }
     }
+    
+    func getParent() -> Env? {
+        switch self {
+        case .parent(let outer):
+            return outer
+        default:
+            return nil
+        }
+    }
 }
 
-var globalEnv: [String: ValueType] = [
+var globalEnv: Env = [
     "π": ValueType.constant(.Number(Double.pi)),
     "pi": ValueType.constant(.Number(Double.pi)),
     "e": ValueType.constant(.Number(M_E)),
@@ -53,7 +65,8 @@ var globalEnv: [String: ValueType] = [
     "-": ValueType.operation(minus),
     "*": ValueType.operation(mul),
     "/": ValueType.operation(div),
-    "exp": ValueType.operation(exp),
+    "expt": ValueType.operation(exp),
+    "pow": ValueType.operation(exp),
     "<":  ValueType.operation(lessThan),
     ">":  ValueType.operation(greaterThan),
     "<=":  ValueType.operation(lessThanEqual),
@@ -62,9 +75,27 @@ var globalEnv: [String: ValueType] = [
     "equal?": ValueType.operation(equal),
     "not": ValueType.operation(not),
     "begin": ValueType.operation(begin),
-    "car": ValueType.operation(car),
-    "cdr": ValueType.operation(cdr)
 ]
+
+func createNewEnv(paramExps: [Exp], argExps: [Exp], outer: Env) -> Env {
+    let paramStrings = paramExps.compactMap{ $0.getSymbolValue() }
+    let paramValues = argExps.map{ ValueType.constant($0)}
+    var newEnv = Env(uniqueKeysWithValues: zip(paramStrings, paramValues))
+    newEnv["parent"] = ValueType.parent(outer)
+    return newEnv
+}
+
+func findValueInEnv(key: String, env: Env) -> ValueType? {
+    if let value = env[key] {
+        return value
+    }
+    else if let parentEnv = env["parent"]?.getParent() {
+        return findValueInEnv(key: key, env: parentEnv)
+    }
+    else {
+        return nil
+    }
+}
 
 func sqrt(_ input: [Exp]) -> Exp? {
     guard input.count == 1 else { return nil }
@@ -228,14 +259,5 @@ func begin(_ input: [Exp]) -> Exp? {
     return input.last
 }
 
-func car(_ input: [Exp]) -> Exp? {
-    return input.first
-}
-
-func cdr(_ input: [Exp]) -> Exp? {
-    var arr = input
-    arr.removeFirst()
-    return .List(arr)
-}
 
 
