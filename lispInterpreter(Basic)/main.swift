@@ -46,6 +46,12 @@ indirect enum Exp {
             return nil
         }
     }
+    func isLambdaExp() -> Bool {
+        if let list = self.getListArray(), list[0].getSymbolValue() == "lambda" {
+            return true
+        }
+        return false
+    }
 }
 
 extension Exp: Equatable {
@@ -102,60 +108,67 @@ func parse(_ input: String) -> (parsed: Exp, rest: String)? {
 
 func eval(_ exp: Exp, env: inout [String: ValueType]) -> Exp? {
     if let s = exp.getSymbolValue() {
-        if let value = findValueInEnv(key: s, env: env) {
-            return value.getConstantValue()
-        }
+        return findEnvFor(key: s, env: env)?[s]?.getValueExp()
     }
     else if let _ = exp.getNumberValue() {
         return exp
     }
     else if let l = exp.getListArray() {
         guard let firstExp = l.first else { return nil } //assumes every list has atleast one element
-        guard let firstElement = firstExp.getSymbolValue() else { return nil } //assumes every list starts with a keyword or fn
-        switch firstElement {
-        case "if":
-            guard l.count == 4 else { return nil } //throw error
-            guard let testExp = eval(l[1], env: &env) else { return nil } // throw error
-            guard let testVal = testExp.getBoolValue() else { return nil } //throw error
-            return (testVal ? eval(l[2], env: &env) : eval(l[3], env: &env))
-        case "define":
-            guard l.count == 3 else { return nil } //throw an error
-            guard let variable = l[1].getSymbolValue() else { return nil } //throw error
-            let valueExp = l[2]
-            if let list = valueExp.getListArray(), list[0].getSymbolValue() == "lambda" {
-                guard list.count == 3 else { return nil } //throw error
-                guard let  paramList = list[1].getListArray() else { return nil } //throw error
-                env[variable] = ValueType.lambda(paramList, list[2])
-            }
-            else {
-                guard let value = eval(l[2], env: &env) else { return nil } //throw error
-                if let _ = value.getNumberValue() {
-                    env[variable] = ValueType.constant(value)
+        if let firstElement = firstExp.getSymbolValue() { //for list starting with keyword or fn symbol
+            switch firstElement {
+            case "if":
+                guard l.count == 4 else { return nil } //throw error
+                guard let testExp = eval(l[1], env: &env) else { return nil } // throw error
+                guard let testVal = testExp.getBoolValue() else { return nil } //throw error
+                return (testVal ? eval(l[2], env: &env) : eval(l[3], env: &env))
+            case "define":
+                guard l.count == 3 else { return nil } //throw an error
+                guard let variable = l[1].getSymbolValue() else { return nil } //throw error
+                guard let valueExp = eval(l[2], env: &env) else { return nil } //throw error
+                env[variable] = ValueType.value(valueExp)
+            case "set!":
+                guard l.count == 3 else { return nil } //throw an error
+                guard let variable = l[1].getSymbolValue() else { return nil } //throw error
+                guard var relevantEnv = findEnvFor(key: variable, env: env) else { return nil }
+                guard let valueExp = eval(l[2], env: &env) else { return nil } //throw error
+                relevantEnv[variable] = ValueType.value(valueExp)
+            case "lambda":
+                guard l.count == 3 else { return nil }
+                return exp
+            default:
+                let args = l[1...].compactMap{ eval($0, env: &env) }
+                if let procCall = findEnvFor(key: firstElement, env: env)?[firstElement]?.getOperation() {
+                    return procCall(args)
+                }
+                else if let callExp = eval(firstExp, env: &env) {//throw error
+                    if callExp.isLambdaExp() {
+                        guard let params = callExp.getListArray()?[1].getListArray() else { return nil }
+                        guard let body = callExp.getListArray()?[2] else { return nil}
+                        var lambdaEnv = createNewEnv(paramExps: params, argExps: args, outer: env)
+                        //print(lambdaEnv)
+                        return eval(body, env: &lambdaEnv)
+                    }
                 }
             }
-            
-        default:
-            guard let callType = findValueInEnv(key: firstElement, env: env) else { return nil } //throw error
+        }
+        else if let anonExp = eval(firstExp, env: &env), anonExp.isLambdaExp() { //list starts with a lambda exp (direct call)
             let args = l[1...].compactMap{ eval($0, env: &env) }
-            if let lambdaCall = callType.getLambda() {
-                var lambdaEnv = createNewEnv(paramExps: lambdaCall.params, argExps: args, outer: env)
-                //print(lambdaEnv)
-                return eval(lambdaCall.body, env: &lambdaEnv)
-            }
-            else if let procCall = callType.getOperation() {
-                return procCall(args)
-            }
+            guard let params = anonExp.getListArray()?[1].getListArray() else { return nil }
+            guard let body = anonExp.getListArray()?[2] else { return nil}
+            var lambdaEnv = createNewEnv(paramExps: params, argExps: args, outer: env)
+            return eval(body, env: &lambdaEnv)
         }
     }
     return nil
 }
 
 /*
-func evalToProc(_ exp: Exp, env: inout [String: ValueType]) -> (([Exp]) -> Exp?)? {
-    guard let procSymbol = exp.getSymbolValue() else { return nil }
-    return env[procSymbol]?.getOperation()
-}
-*/
+ func evalToProc(_ exp: Exp, env: inout [String: ValueType]) -> (([Exp]) -> Exp?)? {
+ guard let procSymbol = exp.getSymbolValue() else { return nil }
+ return env[procSymbol]?.getOperation()
+ }
+ */
 
 extension Exp: CustomStringConvertible {
     var description: String {
@@ -191,6 +204,7 @@ func repl(_ prompt: String = "lispInterpreter>") {
         }
         else {
             print("Invalid LISP expression")
+            
         }
     }
 }

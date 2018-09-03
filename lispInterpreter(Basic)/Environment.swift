@@ -11,14 +11,13 @@ import Foundation
 typealias Env = [String: ValueType]
 
 indirect enum ValueType {
-    case constant(Exp)
+    case value(Exp)
     case operation(([Exp]) -> Exp?)
-    case lambda([Exp], Exp)
     case parent(Env)
     
-    func getConstantValue() -> Exp? {
+    func getValueExp() -> Exp? {
         switch self {
-        case .constant(let val):
+        case .value(let val):
             return val
         default:
             return nil
@@ -28,14 +27,6 @@ indirect enum ValueType {
         switch self {
         case .operation(let op):
             return op
-        default:
-            return nil
-        }
-    }
-    func getLambda() -> (params: [Exp], body: Exp)? {
-        switch  self {
-        case let .lambda(par, bod):
-            return (par, bod)
         default:
             return nil
         }
@@ -52,10 +43,10 @@ indirect enum ValueType {
 }
 
 var globalEnv: Env = [
-    "π": ValueType.constant(.Number(Double.pi)),
-    "pi": ValueType.constant(.Number(Double.pi)),
-    "e": ValueType.constant(.Number(M_E)),
-    "𝑒": ValueType.constant(.Number(M_E)),
+    "π": ValueType.value(.Number(Double.pi)),
+    "pi": ValueType.value(.Number(Double.pi)),
+    "e": ValueType.value(.Number(M_E)),
+    "𝑒": ValueType.value(.Number(M_E)),
     "sqrt": ValueType.operation(sqrt),
     "sin": ValueType.operation(sin),
     "cos": ValueType.operation(cos),
@@ -79,18 +70,18 @@ var globalEnv: Env = [
 
 func createNewEnv(paramExps: [Exp], argExps: [Exp], outer: Env) -> Env {
     let paramStrings = paramExps.compactMap{ $0.getSymbolValue() }
-    let paramValues = argExps.map{ ValueType.constant($0)}
+    let paramValues = argExps.map{ ValueType.value($0)}
     var newEnv = Env(uniqueKeysWithValues: zip(paramStrings, paramValues))
     newEnv["parent"] = ValueType.parent(outer)
     return newEnv
 }
 
-func findValueInEnv(key: String, env: Env) -> ValueType? {
-    if let value = env[key] {
-        return value
+func findEnvFor(key: String, env: Env) -> Env? {
+    if let _ = env[key] {
+        return env
     }
     else if let parentEnv = env["parent"]?.getParent() {
-        return findValueInEnv(key: key, env: parentEnv)
+        return findEnvFor(key: key, env: parentEnv)
     }
     else {
         return nil
@@ -258,6 +249,5 @@ func not(_ input: [Exp]) -> Exp? {
 func begin(_ input: [Exp]) -> Exp? {
     return input.last
 }
-
 
 
